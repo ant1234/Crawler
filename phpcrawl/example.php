@@ -1,7 +1,7 @@
 <?php
 
 // Control speed site is crawled
-set_time_limit(1000);
+set_time_limit(10000);
 
 // Include the scraper library
 include('../simplehtmldom/simple_html_dom.php');
@@ -9,12 +9,15 @@ include('../simplehtmldom/simple_html_dom.php');
 // Include the phpcrawl-mainclass
 include("libs/PHPCrawler.class.php");
 
+session_start();
+
 
 // Extend the class and override the handleDocumentInfo()-method 
 class MyCrawler extends PHPCrawler 
 {
   function handleDocumentInfo($DocInfo) 
   {
+
 
     // Create connection
     $conn = new mysqli('localhost', 'root', '', 'property');
@@ -49,82 +52,157 @@ class MyCrawler extends PHPCrawler
 
     if($status==200 && $source!=""){
 
+      // create dom from page crawled
+      $html = str_get_html($source);
 
-    // create dom from page crawled
-    $html = str_get_html($source );
+      if(is_object($html)){
 
-    if(is_object($html)){
+        // Look for elements that contain the address, no.bedrooms & price
+        $collection['address'] = $html->find('h2[class=detailAddress]');
+        $collection['bedrooms'] = $html->find('ul[id=detailFeatures]');
+        $collection['price'] = $html->find('h3[id=listingViewDisplayPrice]');
 
-
-       foreach($html->find('h2[class=detailAddress]') as $address ) {
-
-        // Just get the text inside the element
-        $address = $address->innertext;
-
-        // Split the string in half & store the area in a seperate variable 
-        $address_input = preg_split("#.*,#", $address);
-        $area_input = preg_split("#,\s.*#", $address);
+        // If the page doesn't have all 3 skip page, otherwise run code
+        if(  !empty($collection['address'])
+          && !empty($collection['bedrooms'])
+          && !empty($collection['price']) ) {
           
-        // Address and area input
-        foreach($address_input as $ad){
-          echo $ad.' <br>';
-        }
+          // Process the address element
+          foreach($html->find('h2[class=detailAddress]') as $address ) {
 
-        // Address and area input
-        foreach($area_input as $ar){
-          echo $ar.' <br>';
-        }
-        
-       }
+          // Take the text that's inside the element
+          $address = $address->innertext;
 
+          // Split the string in half & store the area in a seperate variable 
+          $address_input = preg_split("#.*,#", $address);
+          $area_input = preg_split("#,\s.*#", $address);
+
+          // Store the values in the session if theres both an address & area
+          if($address_input != '' && $area_input != ''){
+
+            // Store the address input
+            foreach($address_input as $ad){
+              $dataCollection['address'][] = $ad;
+              $dataCollection['address'] = array_filter( $dataCollection['address'], 'strlen' );
+            }
+
+            // Store the area input
+            foreach($area_input as $ar){
+              $dataCollection['area'][] = $ar;
+              $dataCollection['area'] = array_filter( $dataCollection['area'], 'strlen' );
+            }
+
+            // ****************** put the filtered array back into session
+            // $address_filter = array_filter( $_SESSION['address'], 'strlen' );
+            // $area_filter = array_filter( $_SESSION['area'], 'strlen' );
+
+            // echo '<ul>';
+            // foreach($area_filter as $address) {
+            //   echo '<li>'.$address.'</li>';
+            // }
+            // echo '</ul>';
+          } 
+
+       } // end of the addresses loop
 
 
       // Bedrooms
-      $ul = $html->find('ul[id=detailFeatures]');
-      foreach($ul as $bedroom){
-        $bedrooms = $bedroom->firstChild().'<br>';
-        // $bedrooms = $bedrooms->innertext;
+      foreach($collection['bedrooms'] as $bedroom){
 
-        echo $bedrooms.' <br>';
+        echo $bedroom->innertext.'<br>';
+        $bedrooms = $bedroom->firstChild();
+        $bedrooms = $bedrooms->firstChild();
+        $bedrooms = $bedrooms->innertext;
+
+        // collect it in the session 
+        $dataCollection['bedrooms'][] = $bedrooms;
+         
+        // Just take the number from the bedroom element
+
+
+        // echo '<ul>';
+        //      foreach($_SESSION['bedrooms'] as $bedroom_output) {
+        //        echo '<li>'.$bedroom_output.'</li>';
+        //      }
+        // echo '</ul>';
+
       }
 
-
-    
       // Price 
       foreach($html->find('h3[id=listingViewDisplayPrice]') as $price) {
 
         // Just get the price text
         $price = $price->innertext;
 
-        // There probably should be more code here to make sure the result is numeric 
-
         // Take out the dollar sign & the commas
         $filterCharacters = array("$", ",");
         $price = str_replace($filterCharacters, "", $price);
 
+        // Make the value a number or null
+        $price = (int)$price;
 
-        // This will insert into the database real quick so be careful
+        // If the value of price is a number insert the price into the session
+        // otherwise specify that there was no price given for that listing
+        if(empty($price)){
+          $dataCollection['pricess'][] = 'NO_PRICE_TAG';
+        } else {
+          $dataCollection['pricess'][] = $price;
+        }
 
-        // if(is_numeric($price)){
-        //   $sql = "INSERT INTO property (ID,ADDRESS,AREA,BEDROOMS,PRICE,URL) 
-        //           VALUES ('NULL', '$address_input', '$area_input','', '$price', '')";
-        // } else {
-        //   $sql = "INSERT INTO property (PRICE) 
-        //   VALUES ('NULL', '$address_input', '$area_input','', 'NULL', '')";
-        // }
+        // Is it a property
+        if(is_numeric($dataCollection['pricess'][0]) && $dataCollection['pricess'][0] < 5000 ) {
+          $dataCollection['type'][] = 'RENTAL';
+        } else {
+          $dataCollection['type'][] = 'SALE';
+        }
 
-        // $conn->query($sql);
-      }
+        // Values for the database 
+        $db_address_input = $dataCollection['address'][0];
+        $db_area_input = $dataCollection['area'][0];
+        $db_type_input = $dataCollection['type'][0];
+        $db_bedroom_input = $dataCollection['bedrooms'][0];
+        $db_price_input = $dataCollection['pricess'][0];
+        $db_url_input = $DocInfo->url;
+
+        // echo $db_address_input.'<br>';
+        // echo $db_area_input.'<br>';
+        // echo $db_type_input.'<br>';
+        // echo $db_bedroom_input.'<br>';
+        // echo $db_price_input.'<br>';
+        // echo $db_url_input.'<br>';
+
+        // Insert the collected data into the database 
+        $sql = "INSERT INTO property 
+                       (ID,ADDRESS,AREA,TYPE,BEDROOMS,PRICE,URL) 
+                VALUES ('NULL',
+                        '$db_address_input',
+                        '$db_area_input',
+                        '$db_type_input',
+                        '$db_bedroom_input',
+                        '$db_price_input',
+                        '$db_url_input' )";
+
+        // Insert the data in the database
+        $conn->query($sql);
+
+        } // end if
+
+        } else {
+          echo 'skip these pages <br>';
+        }
+
         
-    }
 
-    // Page url
-    echo $pageurl."<br/>";
+        
+      }
+
+    
 
     $html->clear(); 
     unset($html);
+
+    } // close if
     
-    }
 
     
     flush();
@@ -162,11 +240,13 @@ $report = $crawler->getProcessReport();
 if (PHP_SAPI == "cli") $lb = "\n";
 else $lb = "<br />";
     
-echo "Summary:".$lb;
-echo "Links followed: ".$report->links_followed.$lb;
-echo "Documents received: ".$report->files_received.$lb;
-echo "Bytes received: ".$report->bytes_received." bytes".$lb;
-echo "Process runtime: ".$report->process_runtime." sec".$lb; 
+// echo "Summary:".$lb;
+// echo "Links followed: ".$report->links_followed.$lb;
+// echo "Documents received: ".$report->files_received.$lb;
+// echo "Bytes received: ".$report->bytes_received." bytes".$lb;
+// echo "Process runtime: ".$report->process_runtime." sec".$lb; 
+
+
 
 
 ?>

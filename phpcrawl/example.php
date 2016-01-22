@@ -59,7 +59,7 @@ class MyCrawler extends PHPCrawler
 
         // Look for elements that contain the address, no.bedrooms & price
         $collection['address'] = $html->find('h2[class=detailAddress]');
-        $collection['bedrooms'] = $html->find('ul[id=detailFeatures]');
+        $collection['bedrooms'] = $html->find('ul[id=detailFeatures] span',0)->innertext;
         $collection['price'] = $html->find('h3[id=listingViewDisplayPrice]');
 
         // If the page doesn't have all 3 skip page, otherwise run code
@@ -92,41 +92,10 @@ class MyCrawler extends PHPCrawler
               $dataCollection['area'] = array_filter( $dataCollection['area'], 'strlen' );
             }
 
-            // ****************** put the filtered array back into session
-            // $address_filter = array_filter( $_SESSION['address'], 'strlen' );
-            // $area_filter = array_filter( $_SESSION['area'], 'strlen' );
-
-            // echo '<ul>';
-            // foreach($area_filter as $address) {
-            //   echo '<li>'.$address.'</li>';
-            // }
-            // echo '</ul>';
           } 
 
        } // end of the addresses loop
 
-
-      // Bedrooms
-      foreach($collection['bedrooms'] as $bedroom){
-
-        echo $bedroom->innertext.'<br>';
-        $bedrooms = $bedroom->firstChild();
-        $bedrooms = $bedrooms->firstChild();
-        $bedrooms = $bedrooms->innertext;
-
-        // collect it in the session 
-        $dataCollection['bedrooms'][] = $bedrooms;
-         
-        // Just take the number from the bedroom element
-
-
-        // echo '<ul>';
-        //      foreach($_SESSION['bedrooms'] as $bedroom_output) {
-        //        echo '<li>'.$bedroom_output.'</li>';
-        //      }
-        // echo '</ul>';
-
-      }
 
       // Price 
       foreach($html->find('h3[id=listingViewDisplayPrice]') as $price) {
@@ -160,16 +129,9 @@ class MyCrawler extends PHPCrawler
         $db_address_input = $dataCollection['address'][0];
         $db_area_input = $dataCollection['area'][0];
         $db_type_input = $dataCollection['type'][0];
-        $db_bedroom_input = $dataCollection['bedrooms'][0];
+        $db_bedroom_input = $collection['bedrooms'];
         $db_price_input = $dataCollection['pricess'][0];
         $db_url_input = $DocInfo->url;
-
-        // echo $db_address_input.'<br>';
-        // echo $db_area_input.'<br>';
-        // echo $db_type_input.'<br>';
-        // echo $db_bedroom_input.'<br>';
-        // echo $db_price_input.'<br>';
-        // echo $db_url_input.'<br>';
 
         // Insert the collected data into the database 
         $sql = "INSERT INTO property 
@@ -190,20 +152,13 @@ class MyCrawler extends PHPCrawler
         } else {
           echo 'skip these pages <br>';
         }
-
-        
-
-        
+ 
       }
-
-    
 
     $html->clear(); 
     unset($html);
 
-    } // close if
-    
-
+    } 
     
     flush();
   } 
@@ -229,7 +184,7 @@ $crawler->addURLFilterRule("#\.(jpg|jpeg|gif|png)$# i");
 $crawler->enableCookieHandling(true);
 
 // Set the traffic-limit to 10mb
-$crawler->setTrafficLimit(1000 * 10485760);
+$crawler->setTrafficLimit(1000 * 104857600);
 
 // Start crawler
 $crawler->go();
@@ -240,13 +195,10 @@ $report = $crawler->getProcessReport();
 if (PHP_SAPI == "cli") $lb = "\n";
 else $lb = "<br />";
     
-// echo "Summary:".$lb;
-// echo "Links followed: ".$report->links_followed.$lb;
-// echo "Documents received: ".$report->files_received.$lb;
-// echo "Bytes received: ".$report->bytes_received." bytes".$lb;
-// echo "Process runtime: ".$report->process_runtime." sec".$lb; 
-
-
-
+echo "Summary:".$lb;
+echo "Links followed: ".$report->links_followed.$lb;
+echo "Documents received: ".$report->files_received.$lb;
+echo "Bytes received: ".$report->bytes_received." bytes".$lb;
+echo "Process runtime: ".$report->process_runtime." sec".$lb; 
 
 ?>

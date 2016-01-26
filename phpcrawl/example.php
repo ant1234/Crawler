@@ -27,7 +27,7 @@ class MyCrawler extends PHPCrawler
     if (PHP_SAPI == "cli") $lb = "\n";
     else $lb = "<br />";
 
-       // Print the URL and the HTTP-status-Code
+    // Print the URL and the HTTP-status-Code
     echo "Page requested: ".$DocInfo->url." (".$DocInfo->http_status_code.")".$lb;
     
     // Print the refering URL
@@ -38,9 +38,6 @@ class MyCrawler extends PHPCrawler
       echo "Content received: ".$DocInfo->bytes_received." bytes".$lb;
     else
       echo "Content not received".$lb; 
-    
-    // Now you should do something with the content of the actual
-    // received page or file ($DocInfo->source), we skip it in this example 
     
     echo $lb; 
 
